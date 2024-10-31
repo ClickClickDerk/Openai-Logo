@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Openai's Infinity Torus Knot Logo</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: black; }
+    </style>
+</head>
+<body>
+    <!-- Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Tween.js v20 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/20.0.0/tween.umd.js"></script>
+    <!-- Post-processing libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+
+    <script>
+        let scene, camera, renderer, composer, fractalMesh, particles, light;
+        let time = 0;
+        let targetColor = new THREE.Color();
+        let bloomPass;
+
+        const params = {
+            morphSpeed: 0.02,
+            bloomStrength: 2.0,
+            bloomRadius: 0.3,
+            bloomThreshold: 0.1,
+            particleDensity: 1000,
+        };
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 8;
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            createFractalGeometry();
+            createParticleSystem();
+            setupLighting();
+            setupPostProcessing();
+            animate();
+        }
+
+        function createFractalGeometry() {
+            const geometry = new THREE.TorusKnotGeometry(2, 0.5, 300, 20, 3, 7);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xffffff,
+                roughness: 0.4,
+                metalness: 0.6,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.8
+            });
+
+            fractalMesh = new THREE.Mesh(geometry, material);
+            scene.add(fractalMesh);
+
+            const tweenScale = new TWEEN.Tween(fractalMesh.scale)
+                .to({ x: 1.5, y: 1.5, z: 1.5 }, 4000)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .yoyo(true)
+                .repeat(Infinity)
+                .start();
+
+            const tweenRotation = new TWEEN.Tween(fractalMesh.rotation)
+                .to({ x: Math.PI * 2, y: Math.PI * 2 }, 6000)
+                .easing(TWEEN.Easing.Quadratic.InOut)
+                .repeat(Infinity)
+                .start();
+        }
+
+        function createParticleSystem() {
+            const particlesGeometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+
+            for (let i = 0; i < params.particleDensity; i++) {
+                const x = THREE.MathUtils.randFloatSpread(30);
+                const y = THREE.MathUtils.randFloatSpread(30);
+                const z = THREE.MathUtils.randFloatSpread(30);
+
+                positions.push(x, y, z);
+
+                const color = new THREE.Color(Math.random(), Math.random(), Math.random());
+                colors.push(color.r, color.g, color.b);
+            }
+
+            particlesGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            particlesGeometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            const particlesMaterial = new THREE.PointsMaterial({
+                size: 0.1,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                transparent: true
+            });
+
+            particles = new THREE.Points(particlesGeometry, particlesMaterial);
+            scene.add(particles);
+        }
+
+        function setupLighting() {
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            light = new THREE.PointLight(0xffffff, 1, 100);
+            light.position.set(5, 5, 5);
+            scene.add(light);
+
+            const tweenLightColor = new TWEEN.Tween(targetColor)
+                .to({ r: Math.random(), g: Math.random(), b: Math.random() }, 5000)
+                .easing(TWEEN.Easing.Linear.None)
+                .onUpdate(() => {
+                    light.color.setRGB(targetColor.r, targetColor.g, targetColor.b);
+                })
+                .yoyo(true)
+                .repeat(Infinity)
+                .start();
+        }
+
+        function setupPostProcessing() {
+            composer = new THREE.EffectComposer(renderer);
+            composer.addPass(new THREE.RenderPass(scene, camera));
+
+            bloomPass = new THREE.UnrealBloomPass(
+                new THREE.Vector2(window.innerWidth, window.innerHeight),
+                params.bloomStrength, params.bloomRadius, params.bloomThreshold
+            );
+            composer.addPass(bloomPass);
+
+            // Custom ShaderPass for Bloom or adding other effects can be used here
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            time += params.morphSpeed;
+
+            fractalMesh.rotation.x += 0.01;
+            fractalMesh.rotation.y += 0.01;
+
+            particles.rotation.y += 0.005;
+
+            TWEEN.update();
+            composer.render();
+        }
+
+        window.addEventListener('resize', function () {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        init();
+        //Created by ClickClickDerk & chatGPT4o
+    </script>
+</body>
+</html>
+
